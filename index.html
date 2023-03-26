@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!--  Axios  -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Import style -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css"/>
+    <!-- Import Vue 3 -->
+    <script src="https://unpkg.com/vue@3"></script>
+    <!-- Import component library -->
+    <script src="https://unpkg.com/element-plus"></script>
+
+    <title>BlockChain</title>
+    <style>
+        #app {
+            margin: 0 20px;
+        }
+
+        .form-area {
+            margin: 20px 0;
+            border: 1px solid black;
+            padding: 0 20px 20px 20px;
+        }
+
+        .mine-title {
+            padding-left: 20px;
+            color: grey;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <el-row :gutter="40">
+        <el-col :span="24/(nodes.length)-1"
+                v-for="item,index in nodes">
+            <h2>{{item.name}}</h2>
+            <el-button @click="startSelfNode({node:index})" :disabled="first_start_node">最先启动本节点</el-button>
+            <el-descriptions
+                    title="节点信息"
+                    :column="2"
+                    border>
+                <template #extra>
+                    <el-button type="primary" @click="refreshNodeInfo({node:index})">刷新</el-button>
+                </template>
+                <el-descriptions-item>
+                    <template #label>节点名</template>
+                    {{item.name}}
+                </el-descriptions-item>
+                <el-descriptions-item>
+                    <template #label>节点地址</template>
+                    {{item.address}}
+                </el-descriptions-item>
+                <el-descriptions-item :span="2">
+                    <template #label>所有节点</template>
+                    <li v-for="li in item.peers">{{li}}</li>
+                </el-descriptions-item>
+                <el-descriptions-item>
+                    <template #label>注册本节点</template>
+                    <el-input v-model="item.register_with" placeholder="远端节点地址{http://xxx.xxx.xxx.xxx:xxxx}"
+                              clearable></el-input>
+                    <el-button @click="registerWith({node:index})">注册</el-button>
+                </el-descriptions-item>
+            </el-descriptions>
+
+            <p></p>
+
+            <div class="form-area">
+                <p>添加茅台酒信息</p>
+                <el-form :model="item.transaction"
+                         validate="">
+                    <el-form-item label="茅台酒生产厂家" required>
+                        <el-input v-model="item.transaction.author"/>
+                    </el-form-item>
+                    <el-form-item label="茅台酒详情描述" required>
+                        <el-input v-model="item.transaction.content"/>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button
+                                :loading="item.transactionBtn"
+                                type="primary"
+                                @click="addTransaction({node:index})">
+                            添加
+                        </el-button>
+                    </el-form-item>
+                </el-form>
+                <el-button type="primary" @click="getUnconfirmed({node:index})">未提交到区块链的茅台酒</el-button>
+                <p></p>
+                <el-descriptions
+                        :column="1"
+                        border
+                        style="width: 100%;margin-bottom: 10px">
+                    <el-descriptions-item label="茅台酒生产厂家">茅台酒详情描述</el-descriptions-item>
+                    <el-descriptions-item
+                            v-for="sub_item in item.unconfirmed"
+                            :label="sub_item.author"
+                            style="overflow: scroll">
+                        {{sub_item.content}} ({{new Date(sub_item.timestamp*1000+8*60*60*1000).toISOString()}})
+                    </el-descriptions-item>
+                </el-descriptions>
+            </div>
+            <div>
+                <el-button type="primary" @click="startMine({node:index})">开始挖矿</el-button>
+                <span class="mine-title">{{item.minetime>0?`已用时${item.minetime}秒`:`点击开始挖矿`}}</span>
+                <p>{{item.mineInfo}}</p>
+            </div>
+
+            <div>
+                <el-divider/>
+            </div>
+
+            <div>
+                <el-button @click="getBlockChainInfo({node:index})" type="primary">更新区块链信息</el-button>
+                <p>区块链挖矿难度 : {{difficulty}}</p>
+                <p>区块链长度 : {{item.blockChain.length}}</p>
+                <el-descriptions
+                        v-for="sub_item in item.blockChain.chain"
+                        :column="1"
+                        border
+                        style="width: 100%;margin-bottom: 10px">
+                    <el-descriptions-item
+                            v-for="(value,key) in sub_item"
+                            :label="key"
+                            style="overflow: scroll">
+                        {{value}}
+                    </el-descriptions-item>
+                </el-descriptions>
+            </div>
+        </el-col>
+    </el-row>
+
+</div>
+
+
+<script type="module">
+
+    const App = {
+        data() {
+            return {
+                message: '信息',
+                first_start_node: false,
+                difficulty: 2,
+                nodes: [
+                    {
+                        name: '节点1',
+                        address: 'http://127.0.0.1:5000',
+                        register_with: '',
+                        peers: [],
+                        transaction: {
+                            author: '',
+                            content: ''
+                        },
+                        unconfirmed: [],
+                        transactionBtn: false,
+                        mineInfo: '',
+                        minetime: 0,
+                        blockChain: []
+                    },
+                    {
+                        name: '节点2',
+                        address: 'http://127.0.0.1:5001',
+                        register_with: '',
+                        peers: [],
+                        transaction: {
+                            author: '',
+                            content: ''
+                        },
+                        unconfirmed: [],
+                        transactionBtn: false,
+                        mineInfo: '',
+                        minetime: 0,
+                        blockChain: []
+                    },
+                    {
+                        name: '节点3',
+                        address: 'http://127.0.0.1:5002',
+                        register_with: '',
+                        peers: [],
+                        transaction: {
+                            author: '',
+                            content: ''
+                        },
+                        unconfirmed: [],
+                        transactionBtn: false,
+                        mineInfo: '',
+                        minetime: 0,
+                        blockChain: []
+                    },
+                ],
+
+            }
+        },
+        methods: {
+            getOne() {
+                console.log(this.message)
+
+            },
+            startSelfNode({node}) {
+                let url = this.nodes[node].address;
+                axios.get(`${url}/init`).then(res => {
+                    this.$message({message: '初始化成功', type: 'success'})
+                    this.first_start_node = true;
+                }).catch(err => {
+                    this.$message({message: '启动失败', type: 'error'})
+                })
+            },
+            refreshNodeInfo({node}) {
+                console.log(`刷新节点${node}的信息`)
+                let url = this.nodes[node].address;
+                axios.get(`${url}/get_peers`).then(
+                    res => {
+                        this.nodes[node].peers = res.data
+                    }).catch(err => {
+                    this.$message({message: '刷新失败', type: 'error'})
+                })
+            },
+            registerWith({node}) {
+                console.log('注册节点' + node)
+                let regex = /http(s)?:\/\/([\w-]+\.)+[\w-]+(\/[\w- .\/?%&=]*)?/;
+                let objExp = RegExp(regex);
+                let reg_with_url = this.nodes[node].register_with
+                if (objExp.test(reg_with_url)) {
+                    let url = this.nodes[node].address;
+                    axios({
+                        method: 'get',
+                        url: `${url}/register_with`,
+                        params: {node_address: reg_with_url},
+                    }).then(res => {
+                        this.$message({message: '注册成功', type: 'success'})
+                        for (let i = 0; i < this.nodes.length; i++) {
+                            this.refreshNodeInfo({node: i})
+                        }
+                        // this.nodes[node].register_with = '';
+                    }).catch(err => {
+                        this.$message({message: '注册失败', type: 'error'})
+                    })
+                } else {
+                    this.$message({message: 'URL格式错误', type: 'error'})
+                }
+
+            },
+            addTransaction({node}) {
+                console.log("node = ", node)
+                console.log(this.nodes[node].transaction)
+                let url = this.nodes[node].address;
+                let data = this.nodes[node].transaction;
+                if (data.author === '' || data.content === '') {
+                    this.$message({
+                        message: '交易信息不可为空',
+                        type: 'error',
+                    })
+                    return;
+                }
+                this.nodes[node].transactionBtn = true;
+                axios({
+                    method: 'get',
+                    url: `${url}/new_transaction`,
+                    params: data
+                }).then(res => {
+                    this.nodes[node].transactionBtn = false;
+                    this.nodes[node].transaction = {}
+                    this.$message({message: '添加成功', type: 'success'})
+                }).catch(err => {
+                    this.nodes[node].transactionBtn = false;
+                });
+            },
+            getUnconfirmed({node}) {
+                let url = this.nodes[node].address;
+                axios.get(`${url}//pending_tx`).then(res => {
+                    this.nodes[node].unconfirmed = res.data;
+                }).catch(err => {
+                    this.$message({message: '获取失败'})
+                })
+            },
+            startMine({node}) {
+                console.log(`节点${node}开始挖矿`)
+                let url = this.nodes[node].address;
+                let mineTime = setInterval(() => {
+                    this.nodes[node].minetime += 1;
+                }, 1000)
+
+                axios({
+                    method: 'GET',
+                    url: `${url}/mine`,
+                }).then(res => {
+                    this.$message({message: res.data, type: 'info'})
+                    clearInterval(mineTime)
+                    this.nodes[node].minetime = 0;
+                    this.nodes[node].unconfirmed = []
+                    this.getBlockChainInfo({node: node})
+                }).catch(err => {
+                    this.$message({message: err.data})
+                    clearInterval(mineTime)
+                })
+            },
+            getBlockChainInfo({node}) {
+                let url = this.nodes[node].address
+                axios.get(`${url}/chain`).then((res) => {
+                    this.nodes[node].blockChain = res.data
+                }).catch((err) => {
+                    console.log('error')
+                })
+                axios.get(`${url}/difficulty`).then(res => {
+                    this.difficulty = res.data
+                }).catch(err => {
+                    console.log("ERROR - difficulty")
+                })
+            },
+        }
+    }
+
+    const app = Vue.createApp(App);
+    app.use(ElementPlus);
+    app.mount('#app')
+</script>
+
+</body>
+</html>
